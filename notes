@@ -1,0 +1,17 @@
+
+netnsa  <----link---->  netnsb  <---- ...
+
+- allocate netns a and b
+    ip netns new
+- allocate link between a and b
+    ip link type veth
+    ip link set netns
+- allocate address space for link (/24? - .1 & .2)
+    ip netns exec ip addr add
+
+- allocate N namespaces
+- allocate N links per namespace
+
+- be able to tear down
+    ip link delete *
+    ip netns delete *

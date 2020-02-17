@@ -3,7 +3,7 @@
 require 'netaddr'
 
 class Netns
-  attr_reader :name
+  attr_reader :name, :lo
   attr_accessor :links
 
   def self.allns
@@ -13,6 +13,7 @@ class Netns
   def initialize(name)
     @links = []
     @name = name
+    @lo = nil
 
     raw_setup unless Netns.allns.include? name
   end
@@ -26,11 +27,22 @@ class Netns
   end
 
   def exec(cmd)
+    puts "#{name}.exec: #{cmd}"
     if is_default?
       `#{cmd}`
     else
       `ip netns exec #{name} #{cmd}`
     end
+  end
+
+  def set_lo(net)
+    @lo = net
+    exec "ip addr add #{net.nth(3).to_s}/64 dev lo"
+    exec "ip link set lo up"
+  end
+
+  def route(to, via)
+    exec "ip route add #{to.to_s} via #{via.to_s}"
   end
 
   def destroy
@@ -71,6 +83,22 @@ class Link
     nss.map{ |n| "v-#{@num}-#{n.name}" }.reverse
   end
 
+  def myip(ns)
+    if ns == nss[0]
+      net.nth(2)
+    else
+      net.nth(1)
+    end
+  end
+
+  def theirip(ns)
+    if ns == nss[0]
+      net.nth(1)
+    else
+      net.nth(2)
+    end
+  end
+
   def destroy
     raw_teardown
   end
@@ -96,10 +124,11 @@ end
 default = Netns.new "default"
 blue = Netns.new "blue"
 
+all = NetAddr::IPv4Net.parse("0.0.0.0/0")
+all6 = NetAddr::IPv6Net.parse("::/0")
+
+blue.set_lo(NetAddr::IPv6Net.parse("5::/64"))
 link = default.link_to blue
-
-p link
-
-# link.destroy
-# blue.destroy
+blue.route(all6, link.myip(blue))
+default.route(blue.lo, link.myip(default))
 
